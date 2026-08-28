@@ -8,48 +8,131 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-<header><h1>Pokémon → eBay</h1><p>Préparation mobile gratuite — V1</p></header>
+
+<header>
+  <h1>Pokémon → eBay</h1>
+  <p>Préparation mobile gratuite — V1</p>
+</header>
+
 <main>
+
 <section class="card">
   <h2>1. Photographier</h2>
-  <label>Recto<input id="front" type="file" accept="image/*" capture="environment"></label>
+
+  <label>
+    Recto
+    <input id="front" type="file" accept="image/*" capture="environment">
+  </label>
   <img id="frontPreview" class="preview" hidden>
-  <label>Verso<input id="back" type="file" accept="image/*" capture="environment"></label>
+
+  <label>
+    Verso
+    <input id="back" type="file" accept="image/*" capture="environment">
+  </label>
   <img id="backPreview" class="preview" hidden>
+
+  <label>
+    Identification — numéro / extension
+    <input id="identification" type="file" accept="image/*" capture="environment">
+  </label>
+  <img id="identificationPreview" class="preview" hidden>
+
+  <p class="small">
+    Prenez ici une photo rapprochée de la zone contenant le numéro de carte
+    et les informations de l'extension.
+  </p>
+
   <button id="process" disabled>Analyser la carte</button>
 </section>
 
+
 <section class="card" id="analysis" hidden>
+
   <h2>2. Identification</h2>
+
   <div id="status">Analyse…</div>
+
   <canvas id="frontCanvas" hidden></canvas>
+
   <div class="grid">
-    <label>Nom / texte détecté<input id="ocrText"></label>
-    <label>Numéro<input id="localId" placeholder="ex. 006/165"></label>
+
+    <label>
+      Nom / texte détecté
+      <input id="ocrText">
+    </label>
+
+    <label>
+      Numéro
+      <input id="localId" placeholder="ex. 006/165">
+    </label>
+
   </div>
+
   <button id="search">Rechercher dans TCGdex</button>
+
   <div id="matches"></div>
+
 </section>
 
+
 <section class="card" id="listing" hidden>
+
   <h2>3. Annonce</h2>
-  <label>Titre<input id="title"></label>
-  <label>Description<textarea id="description"></textarea></label>
+
+  <label>
+    Titre
+    <input id="title">
+  </label>
+
+  <label>
+    Description
+    <textarea id="description"></textarea>
+  </label>
+
   <div class="grid">
-    <label>Départ (€)<input id="price" type="number" step="0.01" value="1.00"></label>
-    <label>Durée<select id="duration"><option selected>7</option></select></label>
-    <label>Port (€)<input id="shipping" type="number" step="0.01" value="4.00"></label>
+
+    <label>
+      Départ (€)
+      <input id="price" type="number" step="0.01" value="1.00">
+    </label>
+
+    <label>
+      Durée
+      <select id="duration">
+        <option selected>7</option>
+      </select>
+    </label>
+
+    <label>
+      Port (€)
+      <input id="shipping" type="number" step="0.01" value="4.00">
+    </label>
+
   </div>
-  <p class="small">Les paramètres ci-dessus sont vos valeurs par défaut. Vérifiez toujours l'annonce avant publication.</p>
+
+  <p class="small">
+    Les paramètres ci-dessus sont vos valeurs par défaut.
+    Vérifiez toujours l'annonce avant publication.
+  </p>
+
   <button id="copy">Copier le texte de l'annonce</button>
   <button id="export">Exporter la fiche JSON</button>
   <button class="secondary" id="reset">Nouvelle carte</button>
+
 </section>
+
 </main>
-<footer>TCGdex est une base Pokémon gratuite. V1 : préparation locale, sans abonnement.</footer>
+
+<footer>
+  TCGdex est une base Pokémon gratuite.
+  V1 : préparation locale, sans abonnement.
+</footer>
+
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script src="app.js"></script>
+
 </body>
 </html>

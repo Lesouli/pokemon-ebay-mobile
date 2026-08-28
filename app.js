@@ -44,12 +44,39 @@ $("search").onclick=async()=>{
   }
 };
 function renderMatches(cards){
-  if(!cards.length){$("matches").innerHTML='<div class="warn">Aucune correspondance. Saisissez manuellement le nom et le numéro.</div>';return}
+  if(!cards.length){
+    $("matches").innerHTML='<div class="warn">Aucune correspondance. Saisissez manuellement le nom et le numéro.</div>';
+    return;
+  }
+
   $("matches").innerHTML="";
+
   cards.forEach(c=>{
-    const div=document.createElement("div");div.className="match";
-    div.innerHTML=`<img src="${c.image||""}" alt=""><div><b>${esc(c.name)}</b><br><span>${esc(c.localId||"")}</span><br><button>Utiliser</button></div>`;
-    div.querySelector("button").onclick=()=>selectCard(c);
+    const div=document.createElement("div");
+    div.className="match";
+
+    const img=document.createElement("img");
+    img.alt=c.name||"";
+    img.loading="lazy";
+
+    // TCGdex fournit généralement le chemin d'image via /cards/{id}
+    // On construit l'URL d'image à partir de l'identifiant de la carte.
+    if(c.id){
+      img.src=`https://assets.tcgdex.net/fr/${c.id}/high.webp`;
+    }
+
+    const info=document.createElement("div");
+    info.innerHTML=`
+      <b>${esc(c.name)}</b><br>
+      <span>${esc(c.localId||"")}</span><br>
+      <button>Utiliser</button>
+    `;
+
+    div.appendChild(img);
+    div.appendChild(info);
+
+    info.querySelector("button").onclick=()=>selectCard(c);
+
     $("matches").appendChild(div);
   });
 }

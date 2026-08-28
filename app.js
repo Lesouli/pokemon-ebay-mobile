@@ -62,7 +62,7 @@ function renderMatches(cards){
     // TCGdex fournit généralement le chemin d'image via /cards/{id}
     // On construit l'URL d'image à partir de l'identifiant de la carte.
     if(c.id){
-      img.src=`https://assets.tcgdex.net/fr/${c.id}/high.webp`;
+img.src=`${c.image}/high.webp`;
     }
 
     const info=document.createElement("div");

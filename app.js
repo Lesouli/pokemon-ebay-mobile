@@ -63,6 +63,175 @@ $("process").onclick=async()=>{
 
   }
 };
+
+async function cropIdentificationRegion(file){
+
+  const img = new Image();
+  img.src = URL.createObjectURL(file);
+
+  await new Promise((resolve,reject)=>{
+    img.onload=resolve;
+    img.onerror=reject;
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img,0,0);
+
+  const src = cv.imread(canvas);
+
+  // Réduction de taille pour accélérer OpenCV
+  const maxWidth = 1200;
+  const scale = Math.min(1,maxWidth/src.cols);
+
+  let work = src;
+
+  if(scale < 1){
+    work = new cv.Mat();
+    cv.resize(
+      src,
+      work,
+      new cv.Size(
+        Math.round(src.cols*scale),
+        Math.round(src.rows*scale)
+      )
+    );
+  }
+
+  // Passage en niveaux de gris
+  const gray = new cv.Mat();
+  cv.cvtColor(work,gray,cv.COLOR_RGBA2GRAY);
+
+  // Réduction du bruit
+  const blurred = new cv.Mat();
+  cv.GaussianBlur(
+    gray,
+    blurred,
+    new cv.Size(5,5),
+    0
+  );
+
+  // Détection des contours
+  const edges = new cv.Mat();
+
+  cv.Canny(
+    blurred,
+    edges,
+    50,
+    150
+  );
+
+  // Recherche des contours
+  const contours = new cv.MatVector();
+  const hierarchy = new cv.Mat();
+
+  cv.findContours(
+    edges,
+    contours,
+    hierarchy,
+    cv.RETR_EXTERNAL,
+    cv.CHAIN_APPROX_SIMPLE
+  );
+
+  let best = null;
+  let bestArea = 0;
+
+  for(let i=0;i<contours.size();i++){
+
+    const contour = contours.get(i);
+    const rect = cv.boundingRect(contour);
+
+    const area = rect.width * rect.height;
+
+    if(area > bestArea &&
+       rect.width > work.cols*0.25 &&
+       rect.height > work.rows*0.25){
+
+      bestArea = area;
+      best = rect;
+    }
+
+    contour.delete();
+  }
+
+  let cropX;
+  let cropY;
+  let cropW;
+  let cropH;
+
+  if(best){
+
+    // Zone inférieure gauche de la zone détectée
+    cropW = Math.round(best.width * 0.55);
+    cropH = Math.round(best.height * 0.30);
+
+    cropX = best.x;
+    cropY = best.y + best.height - cropH;
+
+  }else{
+
+    // Solution de secours si la carte n'est pas détectée
+    cropW = Math.round(work.cols * 0.65);
+    cropH = Math.round(work.rows * 0.35);
+
+    cropX = 0;
+    cropY = work.rows - cropH;
+  }
+
+  const rect = new cv.Rect(
+    Math.max(0,cropX),
+    Math.max(0,cropY),
+    Math.min(cropW,work.cols-cropX),
+    Math.min(cropH,work.rows-cropY)
+  );
+
+  const cropped = work.roi(rect);
+
+  // Agrandissement pour l'OCR
+  const output = new cv.Mat();
+
+  cv.resize(
+    cropped,
+    output,
+    new cv.Size(
+      cropped.cols*3,
+      cropped.rows*3
+    ),
+    0,
+    0,
+    cv.INTER_CUBIC
+  );
+
+  const resultCanvas = document.createElement("canvas");
+
+  cv.imshow(resultCanvas,output);
+
+  const blob = await new Promise(resolve=>{
+    resultCanvas.toBlob(
+      resolve,
+      "image/png"
+    );
+  });
+
+  // Nettoyage mémoire OpenCV
+  src.delete();
+  if(work !== src) work.delete();
+  gray.delete();
+  blurred.delete();
+  edges.delete();
+  contours.delete();
+  hierarchy.delete();
+  cropped.delete();
+  output.delete();
+
+  URL.revokeObjectURL(img.src);
+
+  return blob;
+}
+
 async function ocrImage(file){
 
   const img = new Image();

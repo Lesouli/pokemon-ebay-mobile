@@ -33,18 +33,81 @@ function checkReady(){
 }
 
 $("process").onclick=async()=>{
-  $("analysis").hidden=false;$("status").textContent="Lecture du recto…";
+  $("analysis").hidden=false;
+  $("status").textContent="Lecture de la zone d'identification…";
+
   try{
-    const text=await ocrImage(state.front);
-    state.ocr=text;$("ocrText").value=text.replace(/\s+/g," ").trim();
-    $("status").innerHTML='<div class="ok">OCR terminé. Vérifiez le texte puis lancez la recherche.</div>';
-  }catch(e){$("status").innerHTML='<div class="warn">OCR indisponible : vous pouvez saisir le nom/numéro manuellement.</div>'}
+    const text=await ocrImage(state.identification);
+
+    state.ocr=text;
+
+    const cleaned=text
+      .replace(/\s+/g," ")
+      .trim();
+
+    $("ocrText").value=cleaned;
+
+    const localId=extractLocalId(cleaned);
+
+    if(localId){
+      $("localId").value=localId;
+    }
+
+    $("status").innerHTML=
+      '<div class="ok">OCR terminé sur la photo d’identification. Vérifiez le numéro puis lancez la recherche.</div>';
+
+  }catch(e){
+
+    $("status").innerHTML=
+      '<div class="warn">OCR indisponible : vous pouvez saisir manuellement le numéro et l’extension.</div>';
+
+  }
 };
+
+
 async function ocrImage(file){
+
   const worker=await Tesseract.createWorker("fra");
+
   const r=await worker.recognize(file);
-  await worker.terminate(); return r.data.text||"";
+
+  await worker.terminate();
+
+  return r.data.text||"";
 }
+
+
+function extractLocalId(text){
+
+  if(!text) return "";
+
+  /*
+   * Recherche des formats classiques de numéros Pokémon :
+   * 006/165
+   * 006 / 165
+   * 006-165
+   * 006 sur 165
+   */
+
+  const normalized=text
+    .replace(/[Oo]/g,"0")
+    .replace(/[Il]/g,"1")
+    .replace(/\s+/g," ");
+
+  let match=normalized.match(/\b(\d{1,3})\s*[\/\-]\s*(\d{1,3})\b/);
+
+  if(match){
+    return `${match[1].padStart(3,"0")}/${match[2]}`;
+  }
+
+  match=normalized.match(/\b(\d{1,3})\s+(?:sur|of)\s+(\d{1,3})\b/i);
+
+  if(match){
+    return `${match[1].padStart(3,"0")}/${match[2]}`;
+  }
+
+  return "";
+} 
 $("search").onclick=async()=>{
   const q=$("ocrText").value.trim(), id=$("localId").value.trim();
   $("matches").textContent="Recherche…";

@@ -33,35 +33,59 @@ function checkReady(){
 }
 
 $("process").onclick=async()=>{
+
   $("analysis").hidden=false;
-  $("status").textContent="Lecture de la zone d'identification…";
+  $("status").textContent="Détection de la carte et recadrage…";
 
   try{
-    const text=await ocrImage(state.identification);
 
-    state.ocr=text;
+    const blob=await cropIdentificationRegion(state.identification);
 
-    const cleaned=text
-      .replace(/\s+/g," ")
-      .trim();
+    const url=URL.createObjectURL(blob);
 
-    $("ocrText").value=cleaned;
+    const img=new Image();
 
-    const localId=extractLocalId(cleaned);
+    img.onload=()=>{
 
-    if(localId){
-      $("localId").value=localId;
-    }
+      const canvas=$("frontCanvas");
+
+      canvas.width=img.naturalWidth;
+      canvas.height=img.naturalHeight;
+
+      canvas.hidden=false;
+
+      const ctx=canvas.getContext("2d");
+
+      ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      ctx.drawImage(
+        img,
+        0,
+        0
+      );
+
+      URL.revokeObjectURL(url);
+    };
+
+    img.src=url;
 
     $("status").innerHTML=
-      '<div class="ok">OCR terminé sur la photo d’identification. Vérifiez le numéro puis lancez la recherche.</div>';
+      '<div class="ok">Recadrage automatique effectué. Vérifiez visuellement la zone détectée.</div>';
 
   }catch(e){
 
+    console.error(e);
+
     $("status").innerHTML=
-      '<div class="warn">OCR indisponible : vous pouvez saisir manuellement le numéro et l’extension.</div>';
+      '<div class="warn">Impossible de détecter automatiquement la zone de la carte.</div>';
 
   }
+
 };
 
 async function cropIdentificationRegion(file){

@@ -1,14 +1,36 @@
 const $=id=>document.getElementById(id);
-let state={front:null,back:null,card:null,ocr:""};
+let state={front:null,back:null,identification:null,card:null,ocr:""};
 
 function preview(input,img){
   const f=input.files[0]; if(!f)return;
   const url=URL.createObjectURL(f); img.src=url; img.hidden=false;
   return f;
 }
-$("front").addEventListener("change",()=>{state.front=preview($("front"),$("frontPreview")); checkReady()});
-$("back").addEventListener("change",()=>{state.back=preview($("back"),$("backPreview")); checkReady()});
-function checkReady(){$("process").disabled=!(state.front&&state.back)}
+$("front").addEventListener("change",()=>{
+  state.front=preview($("front"),$("frontPreview"));
+  checkReady();
+});
+
+$("back").addEventListener("change",()=>{
+  state.back=preview($("back"),$("backPreview"));
+  checkReady();
+});
+
+$("identification").addEventListener("change",()=>{
+  state.identification=preview(
+    $("identification"),
+    $("identificationPreview")
+  );
+  checkReady();
+});
+
+function checkReady(){
+  $("process").disabled=!(
+    state.front &&
+    state.back &&
+    state.identification
+  );
+}
 
 $("process").onclick=async()=>{
   $("analysis").hidden=false;$("status").textContent="Lecture du recto…";

@@ -63,20 +63,76 @@ $("process").onclick=async()=>{
 
   }
 };
-
-
 async function ocrImage(file){
 
-  const worker=await Tesseract.createWorker("fra");
+  const img = new Image();
 
-  const r=await worker.recognize(file);
+  img.src = URL.createObjectURL(file);
+
+  await new Promise((resolve,reject)=>{
+    img.onload=resolve;
+    img.onerror=reject;
+  });
+
+  const scale = 3;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth * scale;
+  canvas.height = img.naturalHeight * scale;
+
+  const ctx = canvas.getContext("2d");
+
+  ctx.drawImage(
+    img,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  const imageData = ctx.getImageData(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  const data = imageData.data;
+
+  // Passage en niveaux de gris + amélioration du contraste
+  for(let i=0;i<data.length;i+=4){
+
+    const gray =
+      0.299 * data[i] +
+      0.587 * data[i+1] +
+      0.114 * data[i+2];
+
+    const contrast =
+      Math.max(0,Math.min(255,
+        ((gray - 128) * 1.8) + 128
+      ));
+
+    data[i] = contrast;
+    data[i+1] = contrast;
+    data[i+2] = contrast;
+  }
+
+  ctx.putImageData(imageData,0,0);
+
+  const processedBlob = await new Promise(resolve=>{
+    canvas.toBlob(resolve,"image/png");
+  });
+
+  const worker = await Tesseract.createWorker("fra");
+
+  const result = await worker.recognize(processedBlob);
 
   await worker.terminate();
 
-  return r.data.text||"";
+  URL.revokeObjectURL(img.src);
+
+  return result.data.text || "";
 }
-
-
 function extractLocalId(text){
 
   if(!text) return "";

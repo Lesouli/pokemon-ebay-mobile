@@ -255,6 +255,256 @@ async function cropIdentificationRegion(file){
 
   return blob;
 }
+async function detectCardEdges(file){
+
+  const img = new Image();
+
+  img.src = URL.createObjectURL(file);
+
+  await new Promise((resolve,reject)=>{
+    img.onload=resolve;
+    img.onerror=reject;
+  });
+
+  const canvas = document.createElement("canvas");
+
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+
+  const ctx = canvas.getContext("2d");
+
+  ctx.drawImage(
+    img,
+    0,
+    0
+  );
+
+  const src = cv.imread(canvas);
+
+  // Réduction éventuelle de l'image
+  const maxWidth = 1600;
+
+  const scale = Math.min(
+    1,
+    maxWidth / src.cols
+  );
+
+  let work;
+
+  if(scale < 1){
+
+    work = new cv.Mat();
+
+    cv.resize(
+      src,
+      work,
+      new cv.Size(
+        Math.round(src.cols * scale),
+        Math.round(src.rows * scale)
+      )
+    );
+
+  }else{
+
+    work = src.clone();
+
+  }
+
+  // Niveaux de gris
+  const gray = new cv.Mat();
+
+  cv.cvtColor(
+    work,
+    gray,
+    cv.COLOR_RGBA2GRAY
+  );
+
+  // Réduction du bruit
+  const blurred = new cv.Mat();
+
+  cv.GaussianBlur(
+    gray,
+    blurred,
+    new cv.Size(5,5),
+    0
+  );
+
+  // Détection des contours
+  const edges = new cv.Mat();
+
+  cv.Canny(
+    blurred,
+    edges,
+    40,
+    120
+  );
+
+  // Détection des lignes
+  const lines = new cv.Mat();
+
+  cv.HoughLinesP(
+    edges,
+    lines,
+    1,
+    Math.PI / 180,
+    60,
+    Math.min(work.cols,work.rows) * 0.15,
+    25
+  );
+
+  let leftLine = null;
+  let bottomLine = null;
+
+  let leftScore = 0;
+  let bottomScore = 0;
+
+  for(let i=0;i<lines.rows;i++){
+
+    const x1 = lines.data32S[i*4];
+    const y1 = lines.data32S[i*4+1];
+
+    const x2 = lines.data32S[i*4+2];
+    const y2 = lines.data32S[i*4+3];
+
+    const dx = x2-x1;
+    const dy = y2-y1;
+
+    const length = Math.sqrt(
+      dx*dx + dy*dy
+    );
+
+    if(length < work.cols * 0.12){
+      continue;
+    }
+
+    const angle =
+      Math.atan2(
+        Math.abs(dy),
+        Math.abs(dx)
+      ) * 180 / Math.PI;
+
+    const avgX = (x1+x2)/2;
+    const avgY = (y1+y2)/2;
+
+    // Ligne presque verticale = candidat bord gauche
+    if(angle > 75 && avgX < work.cols * 0.65){
+
+      const score =
+        length *
+        (1 + (1-avgX/work.cols));
+
+      if(score > leftScore){
+
+        leftScore = score;
+
+        leftLine = {
+          x1,
+          y1,
+          x2,
+          y2
+        };
+      }
+    }
+
+    // Ligne presque horizontale = candidat bord inférieur
+    if(angle < 15 && avgY > work.rows * 0.30){
+
+      const score =
+        length *
+        (1 + avgY/work.rows);
+
+      if(score > bottomScore){
+
+        bottomScore = score;
+
+        bottomLine = {
+          x1,
+          y1,
+          x2,
+          y2
+        };
+      }
+    }
+  }
+
+  // Création de l'image de contrôle
+  const debugCanvas = document.createElement("canvas");
+
+  debugCanvas.width = work.cols;
+  debugCanvas.height = work.rows;
+
+  cv.imshow(
+    debugCanvas,
+    work
+  );
+
+  const debugCtx =
+    debugCanvas.getContext("2d");
+
+  debugCtx.lineWidth = 8;
+
+  // Rouge = bord gauche détecté
+  if(leftLine){
+
+    debugCtx.strokeStyle = "red";
+
+    debugCtx.beginPath();
+
+    debugCtx.moveTo(
+      leftLine.x1,
+      leftLine.y1
+    );
+
+    debugCtx.lineTo(
+      leftLine.x2,
+      leftLine.y2
+    );
+
+    debugCtx.stroke();
+  }
+
+  // Bleu = bord inférieur détecté
+  if(bottomLine){
+
+    debugCtx.strokeStyle = "blue";
+
+    debugCtx.beginPath();
+
+    debugCtx.moveTo(
+      bottomLine.x1,
+      bottomLine.y1
+    );
+
+    debugCtx.lineTo(
+      bottomLine.x2,
+      bottomLine.y2
+    );
+
+    debugCtx.stroke();
+  }
+
+  const resultBlob =
+    await new Promise(resolve=>{
+
+      debugCanvas.toBlob(
+        resolve,
+        "image/png"
+      );
+
+    });
+
+  // Nettoyage
+  src.delete();
+  work.delete();
+  gray.delete();
+  blurred.delete();
+  edges.delete();
+  lines.delete();
+
+  URL.revokeObjectURL(img.src);
+
+  return resultBlob;
+}
 
 async function ocrImage(file){
 
@@ -357,26 +607,74 @@ function extractLocalId(text){
 
   return "";
 } 
-$("search").onclick=async()=>{
-  const q=$("ocrText").value.trim(), id=$("localId").value.trim();
-  $("matches").textContent="Recherche…";
+$("process").onclick=async()=>{
+
+  $("analysis").hidden=false;
+
+  $("status").textContent=
+    "Détection des bords de la carte…";
+
   try{
-    let cards=[];
-    // Try number + OCR words first; TCGdex supports filtering but API query syntax varies,
-    // so the V1 uses the card list and local matching on a reduced set where possible.
-    const res=await fetch("https://api.tcgdex.net/v2/fr/cards");
-    const data=await res.json();
-    const words=q.toLowerCase().split(/\s+/).filter(x=>x.length>=3);
-    cards=data.filter(c=>{
-      const name=(c.name||"").toLowerCase(), local=(c.localId||"").toLowerCase();
-      const score=words.reduce((s,w)=>s+(name.includes(w)?2:0),0)+(id&&local===id.toLowerCase()?5:0);
-      c._score=score; return score>0;
-    }).sort((a,b)=>b._score-a._score).slice(0,8);
-    renderMatches(cards);
+
+    const blob =
+      await detectCardEdges(
+        state.identification
+      );
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const img =
+      new Image();
+
+    img.onload=()=>{
+
+      const canvas =
+        $("frontCanvas");
+
+      canvas.width =
+        img.naturalWidth;
+
+      canvas.height =
+        img.naturalHeight;
+
+      canvas.hidden=false;
+
+      const ctx =
+        canvas.getContext("2d");
+
+      ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      ctx.drawImage(
+        img,
+        0,
+        0
+      );
+
+      URL.revokeObjectURL(url);
+
+    };
+
+    img.src=url;
+
+    $("status").innerHTML=
+      '<div class="ok">Détection effectuée. Rouge = bord gauche ; bleu = bord inférieur.</div>';
+
   }catch(e){
-    $("matches").innerHTML='<div class="warn">Impossible de contacter TCGdex. Vérifiez la connexion Internet.</div>';
+
+    console.error(e);
+
+    $("status").innerHTML=
+      '<div class="warn">Erreur pendant la détection de la carte.</div>';
+
   }
-};
+
+}; 
 function renderMatches(cards){
   if(!cards.length){
     $("matches").innerHTML='<div class="warn">Aucune correspondance. Saisissez manuellement le nom et le numéro.</div>';
